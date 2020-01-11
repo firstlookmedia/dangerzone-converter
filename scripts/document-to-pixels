@@ -1,72 +1,115 @@
-#!/bin/bash
+#!/usr/bin/env python3
+import sys
+import subprocess
+import glob
+import shutil
+import os
 
-die() {
-    echo "$1" >&2
-    exit 1
-}
+import magic
+from PIL import Image
 
-# Detect the mime type
-MIME_TYPE=$(file -b --mime-type /tmp/input_file)
-echo "Documet MIME type is $MIME_TYPE"
-echo
 
-# .pdf
-if [ $MIME_TYPE = "application/pdf" ]; then
-    ORIGINAL_PDF=/tmp/input_file
-# .docx
-elif [ $MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ]; then
-    echo "Converting DOCX to PDF"
-    CONVERT_MSGS=$(libreoffice --headless --convert-to pdf:writer_pdf_Export --outdir /tmp /tmp/input_file 2>&1)
-    if [ $? -ne 0 ]; then
-        die "Page $PAGE conversion failed: $CONVERT_MSGS"
-    fi
-    ORIGINAL_PDF=/tmp/input_file.pdf
-# .xlsx
-elif [ $MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ]; then
-    echo "Converting XLSX to PDF"
-    CONVERT_MSGS=$(libreoffice --headless --convert-to pdf:calc_pdf_Export --outdir /tmp /tmp/input_file 2>&1)
-    if [ $? -ne 0 ]; then
-        die "Page $PAGE conversion failed: $CONVERT_MSGS"
-    fi
-    ORIGINAL_PDF=/tmp/input_file.pdf
-else
-    die "The document format is not supported"
-fi
+def main():
+    conversions = {
+        # .pdf
+        "application/pdf": {"type": None},
+        # .docx
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "writer_pdf_Export",
+        },
+        # .xlsx
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "calc_pdf_Export",
+        },
+    }
 
-echo "Separating document into pages"
-CONVERT_MSGS=$(pdfseparate $ORIGINAL_PDF /tmp/page-%d.pdf 2>&1)
-if [ $? -ne 0 ]; then
-    die "Separating document into pages failed: $CONVERT_MSGS"
-fi
+    # Detect MIME type
+    mime = magic.Magic(mime=True)
+    mime_type = mime.from_file("/tmp/input_file")
 
-IMG_DEPTH=8
-NUM_PAGES=$(find /tmp/page-*.pdf |wc -l)
-echo "Document has $NUM_PAGES pages"
-echo
+    # Validate MIME type
+    if mime_type not in conversions:
+        print("The document format is not supported")
+        sys.exit(1)
 
-for PAGE in $(seq 1 $NUM_PAGES); do
-    FILENAME=/tmp/page-$PAGE.pdf
-    FILENAME_BASE=/tmp/page-$PAGE
+    # Convert input document to PDF
+    conversion = conversions[mime_type]
+    if conversion["type"] is None:
+        pdf_filename = "/tmp/input_file"
+    elif conversion["type"] == "libreoffice":
+        args = [
+            "libreoffice",
+            "--headless",
+            "--convert-to",
+            f"pdf:{conversion['libreoffice_output_filter']}",
+            "--outdir",
+            "/tmp",
+            "/tmp/input_file",
+        ]
+        p = subprocess.run(args)
+        if p.returncode != 0:
+            print(f"Conversion to PDF failed: {p.stdout}")
+            sys.exit(1)
+        pdf_filename = "/tmp/input_file.pdf"
+    else:
+        print("Invalid conversion type")
+        sys.exit(1)
 
-    echo "Converting page $PAGE to pixels"
+    # Separate PDF into pages
+    args = ["pdfseparate", pdf_filename, "/tmp/page-%d.pdf"]
+    p = subprocess.run(args)
+    if p.returncode != 0:
+        print(f"Separating document into pages failed: {p.stdout}")
+        sys.exit(1)
 
-    # Convert to png
-    pdftocairo "$FILENAME" -png -singlefile "$FILENAME_BASE"
-    
-    # Get the width and height
-    IMG_WIDTH=$(identify -format "%w" "$FILENAME_BASE.png")
-    IMG_HEIGHT=$(identify -format "%h" "$FILENAME_BASE.png")
-    echo $IMG_WIDTH > $FILENAME_BASE.width
-    echo $IMG_HEIGHT > $FILENAME_BASE.height
-    
-    # Convert to rgb
-    convert "$FILENAME_BASE.png" -depth $IMG_DEPTH rgb:"$FILENAME_BASE.rgb"
+    page_filenames = glob.glob("/tmp/page-*.pdf")
+    print(f"Document has {len(page_filenames)} pages")
 
-    # Delete the png
-    rm "$FILENAME_BASE.png"
+    # Convert to RGB pixel data
+    for page in range(1, len(page_filenames) + 1):
+        pdf_filename = f"/tmp/page-{page}.pdf"
+        png_filename = f"/tmp/page-{page}.png"
+        rgb_filename = f"/tmp/page-{page}.rgb"
+        width_filename = f"/tmp/page-{page}.width"
+        height_filename = f"/tmp/page-{page}.height"
+        filename_base = f"/tmp/page-{page}"
 
-    # Move files needed for the next step to the mounted volume
-    mv "$FILENAME_BASE.rgb" /dangerzone
-    mv "$FILENAME_BASE.width" /dangerzone
-    mv "$FILENAME_BASE.height" /dangerzone
-done
+        print(f"Converting page {page} to pixels")
+
+        # Convert to png
+        p = subprocess.run(
+            ["pdftocairo", pdf_filename, "-png", "-singlefile", filename_base]
+        )
+        if p.returncode != 0:
+            print(f"Conversion from PDF to PNG failed: {p.stdout}")
+            sys.exit(1)
+
+        # Save the width and height
+        im = Image.open(png_filename)
+        width, height = im.size
+        with open(width_filename, "w") as f:
+            f.write(str(width))
+        with open(height_filename, "w") as f:
+            f.write(str(height))
+
+        # Convert to RGB pixels
+        p = subprocess.run(
+            ["convert", png_filename, "-depth", "8", f"rgb:{rgb_filename}"]
+        )
+        if p.returncode != 0:
+            print(f"Conversion from PNG to RGB failed: {p.stdout}")
+            sys.exit(1)
+
+        # # Delete the png
+        os.remove(png_filename)
+
+        # Move files needed for the next step to the mounted volume
+        shutil.move(rgb_filename, "/dangerzone")
+        shutil.move(width_filename, "/dangerzone")
+        shutil.move(height_filename, "/dangerzone")
+
+
+if __name__ == "__main__":
+    main()
