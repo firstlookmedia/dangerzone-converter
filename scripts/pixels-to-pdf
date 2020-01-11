@@ -1,73 +1,100 @@
-#!/bin/bash
+#!/usr/bin/env python3
+import glob
+import os
+import sys
+import subprocess
 
-die() {
-    echo "$1" >&2
-    exit 1
-}
 
-IMG_DEPTH=8
-NUM_PAGES=$(find /dangerzone/page-*.rgb |wc -l)
+def main():
+    num_pages = len(glob.glob("/dangerzone/page-*.rgb"))
+    print(f"Document has {num_pages} pages")
 
-echo "Document has $NUM_PAGES pages"
-echo
+    # Convert RGB files to PDF files
+    for page in range(1, num_pages + 1):
+        filename_base = f"/dangerzone/page-{page}"
+        rgb_filename = f"{filename_base}.rgb"
+        width_filename = f"{filename_base}.width"
+        height_filename = f"{filename_base}.height"
+        png_filename = f"/tmp/page-{page}.png"
+        ocr_filename = f"/tmp/page-{page}"
+        pdf_filename = f"/tmp/page-{page}.pdf"
 
-# Convert rgb files to png files
-for PAGE in $(seq 1 $NUM_PAGES); do
-    FILENAME_BASE=/dangerzone/page-$PAGE
-    RGB_FILENAME=${FILENAME_BASE}.rgb
-    WIDTH_FILENAME=${FILENAME_BASE}.width
-    HEIGHT_FILENAME=${FILENAME_BASE}.height
-    PNG_FILENAME=/tmp/page-$PAGE.png
-    OCR_FILENAME=/tmp/page-$PAGE
-    PDF_FILENAME=/tmp/page-$PAGE.pdf
+        with open(width_filename) as f:
+            width = f.read().strip()
+        with open(height_filename) as f:
+            height = f.read().strip()
 
-    IMG_WIDTH=$(cat $WIDTH_FILENAME)
-    IMG_HEIGHT=$(cat $HEIGHT_FILENAME)
+        if os.environ.get("OCR") == "1":
+            # OCR the document
+            print(f"Converting page {page} from pixels to searchable PDF")
 
-    if [ $OCR = "1" ]; then
+            args = [
+                "convert",
+                "-size",
+                f"{width}x{height}",
+                "-depth",
+                "8",
+                f"rgb:{rgb_filename}",
+                f"png:{png_filename}",
+            ]
+            p = subprocess.run(args)
+            if p.returncode != 0:
+                print(f"Page {page} conversion failed: {p.stdout}")
+                sys.exit(1)
 
-        echo "Converting page $PAGE from pixels to searchable PDF"
+            args = [
+                "tesseract",
+                png_filename,
+                ocr_filename,
+                "pdf",
+                "-l",
+                os.environ.get("OCR_LANGUAGE"),
+            ]
+            p = subprocess.run(args)
+            if p.returncode != 0:
+                print(f"Page {page} conversion failed: {p.stdout}")
+                sys.exit(1)
 
-        CONVERT_MSGS=$(convert -size "${IMG_WIDTH}x${IMG_HEIGHT}" -depth ${IMG_DEPTH} rgb:"$RGB_FILENAME" png:"$PNG_FILENAME" 2>&1)
-        if [ $? -ne 0 ]; then
-            die "Page $PAGE conversion failed: $CONVERT_MSGS"
-        fi
+        else:
+            # Don't OCR
+            print(f"Converting page {page} from pixels to PDF")
 
-        CONVERT_MSGS=$(tesseract $PNG_FILENAME $OCR_FILENAME pdf -l $OCR_LANGUAGE 2>&1)
-        if [ $? -ne 0 ]; then
-            die "Page $PAGE conversion failed: $CONVERT_MSGS"
-        fi
+            args = [
+                "convert",
+                "-size",
+                f"{width}x{height}",
+                "-depth",
+                "8",
+                f"rgb:{rgb_filename}",
+                f"pdf:{pdf_filename}",
+            ]
+            p = subprocess.run(args)
+            if p.returncode != 0:
+                print(f"Page {page} conversion failed: {p.stdout}")
+                sys.exit(1)
 
-    else
+    print()
 
-        echo "Converting page $PAGE from pixels to PDF"
+    # Merge pages into a single PDF
+    print(f"Merging {num_pages} pages into a single PDF")
+    args = ["pdfunite"]
+    for page in range(1, num_pages + 1):
+        args.append(f"/tmp/page-{page}.pdf")
+    args.append(f"/safezone/safe-output.pdf")
+    p = subprocess.run(args)
+    if p.returncode != 0:
+        print(f"Merge failed: {p.stdout}")
+        sys.exit(1)
 
-        CONVERT_MSGS=$(convert -size "${IMG_WIDTH}x${IMG_HEIGHT}" -depth ${IMG_DEPTH} rgb:"$RGB_FILENAME" png:"$PNG_FILENAME" 2>&1)
-        if [ $? -ne 0 ]; then
-            die "Page $PAGE conversion failed: $CONVERT_MSGS"
-        fi
+    # Compress
+    print("Compressing PDF")
+    p = subprocess.run(
+        ["ps2pdf", "/safezone/safe-output.pdf", "/safezone/safe-output-compressed.pdf"]
+    )
+    if p.returncode != 0:
+        print(f"Compression failed: {p.stdout}")
+        sys.exit(1)
 
-        CONVERT_MSGS=$(convert $PNG_FILENAME $PDF_FILENAME 2>&1)
-        if [ $? -ne 0 ]; then
-            die "Page $PAGE conversion failed: $CONVERT_MSGS"
-        fi
 
-    fi
-done
-
-echo
-echo "Merging $NUM_PAGES pages into a single PDF"
-
-# Put PDF filenames into an array
-declare -a args
-for PAGE in $(seq 1 $NUM_PAGES); do
-    args+=("/tmp/page-$PAGE.pdf")
-done
-args+=("/safezone/safe-output.pdf")
-
-# Merge them
-pdfunite "${args[@]}"
-
-# Compress
-echo "Compressing PDF"
-ps2pdf /safezone/safe-output.pdf /safezone/safe-output-compressed.pdf
+if __name__ == "__main__":
+    main()
