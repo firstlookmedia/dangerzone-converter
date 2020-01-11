@@ -5,9 +5,14 @@ import sys
 import subprocess
 
 
+def print_flush(s=""):
+    print(s)
+    sys.stdout.flush()
+
+
 def main():
     num_pages = len(glob.glob("/dangerzone/page-*.rgb"))
-    print(f"Document has {num_pages} pages")
+    print_flush(f"Document has {num_pages} pages")
 
     # Convert RGB files to PDF files
     for page in range(1, num_pages + 1):
@@ -26,7 +31,7 @@ def main():
 
         if os.environ.get("OCR") == "1":
             # OCR the document
-            print(f"Converting page {page} from pixels to searchable PDF")
+            print_flush(f"Converting page {page} from pixels to searchable PDF")
 
             args = [
                 "convert",
@@ -39,7 +44,7 @@ def main():
             ]
             p = subprocess.run(args)
             if p.returncode != 0:
-                print(f"Page {page} conversion failed: {p.stdout}")
+                print_flush(f"Page {page} conversion failed: {p.stdout}")
                 sys.exit(1)
 
             args = [
@@ -52,12 +57,12 @@ def main():
             ]
             p = subprocess.run(args)
             if p.returncode != 0:
-                print(f"Page {page} conversion failed: {p.stdout}")
+                print_flush(f"Page {page} conversion failed: {p.stdout}")
                 sys.exit(1)
 
         else:
             # Don't OCR
-            print(f"Converting page {page} from pixels to PDF")
+            print_flush(f"Converting page {page} from pixels to PDF")
 
             args = [
                 "convert",
@@ -70,29 +75,29 @@ def main():
             ]
             p = subprocess.run(args)
             if p.returncode != 0:
-                print(f"Page {page} conversion failed: {p.stdout}")
+                print_flush(f"Page {page} conversion failed: {p.stdout}")
                 sys.exit(1)
 
-    print()
+    print_flush()
 
     # Merge pages into a single PDF
-    print(f"Merging {num_pages} pages into a single PDF")
+    print_flush(f"Merging {num_pages} pages into a single PDF")
     args = ["pdfunite"]
     for page in range(1, num_pages + 1):
         args.append(f"/tmp/page-{page}.pdf")
     args.append(f"/safezone/safe-output.pdf")
     p = subprocess.run(args)
     if p.returncode != 0:
-        print(f"Merge failed: {p.stdout}")
+        print_flush(f"Merge failed: {p.stdout}")
         sys.exit(1)
 
     # Compress
-    print("Compressing PDF")
+    print_flush("Compressing PDF")
     p = subprocess.run(
         ["ps2pdf", "/safezone/safe-output.pdf", "/safezone/safe-output-compressed.pdf"]
     )
     if p.returncode != 0:
-        print(f"Compression failed: {p.stdout}")
+        print_flush(f"Compression failed: {p.stdout}")
         sys.exit(1)
 
 

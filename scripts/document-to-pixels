@@ -9,6 +9,11 @@ import magic
 from PIL import Image
 
 
+def print_flush(s):
+    print(s)
+    sys.stdout.flush()
+
+
 def main():
     conversions = {
         # .pdf
@@ -18,8 +23,48 @@ def main():
             "type": "libreoffice",
             "libreoffice_output_filter": "writer_pdf_Export",
         },
+        # .doc
+        "application/msword": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "writer_pdf_Export",
+        },
         # .xlsx
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "calc_pdf_Export",
+        },
+        # .xls
+        "application/vnd.ms-excel": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "calc_pdf_Export",
+        },
+        # .pptx
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "impress_pdf_Export",
+        },
+        # .ppt
+        "application/vnd.ms-powerpoint": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "impress_pdf_Export",
+        },
+        # .odt
+        "application/vnd.oasis.opendocument.text": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "writer_pdf_Export",
+        },
+        # .odg
+        "application/vnd.oasis.opendocument.graphics": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "impress_pdf_Export",
+        },
+        # .odp
+        "application/vnd.oasis.opendocument.presentation": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "impress_pdf_Export",
+        },
+        # .ops
+        "application/vnd.oasis.opendocument.spreadsheet": {
             "type": "libreoffice",
             "libreoffice_output_filter": "calc_pdf_Export",
         },
@@ -31,7 +76,7 @@ def main():
 
     # Validate MIME type
     if mime_type not in conversions:
-        print("The document format is not supported")
+        print_flush("The document format is not supported")
         sys.exit(1)
 
     # Convert input document to PDF
@@ -50,22 +95,22 @@ def main():
         ]
         p = subprocess.run(args)
         if p.returncode != 0:
-            print(f"Conversion to PDF failed: {p.stdout}")
+            print_flush(f"Conversion to PDF failed: {p.stdout}")
             sys.exit(1)
         pdf_filename = "/tmp/input_file.pdf"
     else:
-        print("Invalid conversion type")
+        print_flush("Invalid conversion type")
         sys.exit(1)
 
     # Separate PDF into pages
     args = ["pdfseparate", pdf_filename, "/tmp/page-%d.pdf"]
     p = subprocess.run(args)
     if p.returncode != 0:
-        print(f"Separating document into pages failed: {p.stdout}")
+        print_flush(f"Separating document into pages failed: {p.stdout}")
         sys.exit(1)
 
     page_filenames = glob.glob("/tmp/page-*.pdf")
-    print(f"Document has {len(page_filenames)} pages")
+    print_flush(f"Document has {len(page_filenames)} pages")
 
     # Convert to RGB pixel data
     for page in range(1, len(page_filenames) + 1):
@@ -76,14 +121,14 @@ def main():
         height_filename = f"/tmp/page-{page}.height"
         filename_base = f"/tmp/page-{page}"
 
-        print(f"Converting page {page} to pixels")
+        print_flush(f"Converting page {page} to pixels")
 
         # Convert to png
         p = subprocess.run(
             ["pdftocairo", pdf_filename, "-png", "-singlefile", filename_base]
         )
         if p.returncode != 0:
-            print(f"Conversion from PDF to PNG failed: {p.stdout}")
+            print_flush(f"Conversion from PDF to PNG failed: {p.stdout}")
             sys.exit(1)
 
         # Save the width and height
@@ -99,7 +144,7 @@ def main():
             ["convert", png_filename, "-depth", "8", f"rgb:{rgb_filename}"]
         )
         if p.returncode != 0:
-            print(f"Conversion from PNG to RGB failed: {p.stdout}")
+            print_flush(f"Conversion from PNG to RGB failed: {p.stdout}")
             sys.exit(1)
 
         # # Delete the png
