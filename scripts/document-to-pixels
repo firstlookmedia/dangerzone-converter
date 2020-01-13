@@ -68,6 +68,15 @@ def main():
             "type": "libreoffice",
             "libreoffice_output_filter": "calc_pdf_Export",
         },
+        # .jpg
+        "image/jpeg": {"type": "convert"},
+        # .gif
+        "image/gif": {"type": "convert"},
+        # .png
+        "image/png": {"type": "convert"},
+        # .tif
+        "image/tiff": {"type": "convert"},
+        "image/x-tiff": {"type": "convert"},
     }
 
     # Detect MIME type
@@ -92,6 +101,17 @@ def main():
             "--outdir",
             "/tmp",
             "/tmp/input_file",
+        ]
+        p = subprocess.run(args)
+        if p.returncode != 0:
+            print_flush(f"Conversion to PDF failed: {p.stdout}")
+            sys.exit(1)
+        pdf_filename = "/tmp/input_file.pdf"
+    elif conversion["type"] == "convert":
+        args = [
+            "convert",
+            "/tmp/input_file",
+            "/tmp/input_file.pdf",
         ]
         p = subprocess.run(args)
         if p.returncode != 0:
