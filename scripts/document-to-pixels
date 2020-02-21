@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Do the conversion without root
-/usr/bin/sudo -u user /usr/local/bin/document-to-pixels-unpriv
+/usr/bin/sudo -E -u user /usr/local/bin/document-to-pixels-unpriv
 
 # Move converted files into /dangerzone
 /usr/bin/mv /tmp/page-*.rgb /dangerzone
