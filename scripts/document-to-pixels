@@ -1,9 +1,14 @@
 #!/bin/bash
 
 # Do the conversion without root
-/usr/bin/sudo -E -u user /usr/local/bin/document-to-pixels-unpriv
+/usr/bin/sudo -u user /usr/local/bin/document-to-pixels-unpriv 2> /dev/null
+RETURN_CODE=$?
+if [ $RETURN_CODE -ne 0 ]; then
+    echo ""
+    exit $RETURN_CODE
+fi
 
 # Move converted files into /dangerzone
-/usr/bin/mv /tmp/page-*.rgb /dangerzone
-/usr/bin/mv /tmp/page-*.width /dangerzone
-/usr/bin/mv /tmp/page-*.height /dangerzone
+/bin/mv /tmp/page-*.rgb /dangerzone
+/bin/mv /tmp/page-*.width /dangerzone
+/bin/mv /tmp/page-*.height /dangerzone

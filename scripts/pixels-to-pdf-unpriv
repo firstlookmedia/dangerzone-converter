@@ -42,7 +42,13 @@ def main():
                 f"rgb:{rgb_filename}",
                 f"png:{png_filename}",
             ]
-            p = subprocess.run(args)
+            try:
+                p = subprocess.run(args, timeout=60)
+            except subprocess.TimeoutExpired:
+                print_flush(
+                    "Error converting pixels to PNG, convert timed out after 60 seconds"
+                )
+                sys.exit(1)
             if p.returncode != 0:
                 print_flush(f"Page {page} conversion failed: {p.stdout}")
                 sys.exit(1)
@@ -55,7 +61,13 @@ def main():
                 "-l",
                 os.environ.get("OCR_LANGUAGE"),
             ]
-            p = subprocess.run(args)
+            try:
+                p = subprocess.run(args, timeout=60)
+            except subprocess.TimeoutExpired:
+                print_flush(
+                    "Error converting PNG to searchable PDF, tesseract timed out after 60 seconds"
+                )
+                sys.exit(1)
             if p.returncode != 0:
                 print_flush(f"Page {page} conversion failed: {p.stdout}")
                 sys.exit(1)
@@ -73,7 +85,13 @@ def main():
                 f"rgb:{rgb_filename}",
                 f"pdf:{pdf_filename}",
             ]
-            p = subprocess.run(args)
+            try:
+                p = subprocess.run(args, timeout=60)
+            except subprocess.TimeoutExpired:
+                print_flush(
+                    "Error converting RGB to PDF, convert timed out after 60 seconds"
+                )
+                sys.exit(1)
             if p.returncode != 0:
                 print_flush(f"Page {page} conversion failed: {p.stdout}")
                 sys.exit(1)
@@ -86,16 +104,27 @@ def main():
     for page in range(1, num_pages + 1):
         args.append(f"/tmp/page-{page}.pdf")
     args.append(f"/tmp/safe-output.pdf")
-    p = subprocess.run(args)
+    try:
+        p = subprocess.run(args, timeout=60)
+    except subprocess.TimeoutExpired:
+        print_flush(
+            "Error merging pages into a single PDF, pdfunite timed out after 60 seconds"
+        )
+        sys.exit(1)
     if p.returncode != 0:
         print_flush(f"Merge failed: {p.stdout}")
         sys.exit(1)
 
     # Compress
     print_flush("Compressing PDF")
-    p = subprocess.run(
-        ["ps2pdf", "/tmp/safe-output.pdf", "/tmp/safe-output-compressed.pdf"]
-    )
+    try:
+        p = subprocess.run(
+            ["ps2pdf", "/tmp/safe-output.pdf", "/tmp/safe-output-compressed.pdf"],
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        print_flush("Error compressing PDF, ps2pdf timed out after 60 seconds")
+        sys.exit(1)
     if p.returncode != 0:
         print_flush(f"Compression failed: {p.stdout}")
         sys.exit(1)

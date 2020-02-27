@@ -93,6 +93,7 @@ def main():
     if conversion["type"] is None:
         pdf_filename = "/tmp/input_file"
     elif conversion["type"] == "libreoffice":
+        print_flush(f"Converting to PDF using LibreOffice")
         args = [
             "libreoffice",
             "--headless",
@@ -102,18 +103,32 @@ def main():
             "/tmp",
             "/tmp/input_file",
         ]
-        p = subprocess.run(args)
+        try:
+            p = subprocess.run(args, timeout=10)
+        except subprocess.TimeoutExpired:
+            print_flush(
+                "Error converting document to PDF, LibreOffice timed out after 60 seconds"
+            )
+            sys.exit(1)
+
         if p.returncode != 0:
             print_flush(f"Conversion to PDF failed: {p.stdout}")
             sys.exit(1)
         pdf_filename = "/tmp/input_file.pdf"
     elif conversion["type"] == "convert":
+        print_flush(f"Converting to PDF using ImageMagick")
         args = [
             "convert",
             "/tmp/input_file",
             "/tmp/input_file.pdf",
         ]
-        p = subprocess.run(args)
+        try:
+            p = subprocess.run(args, timeout=60)
+        except subprocess.TimeoutExpired:
+            print_flush(
+                "Error converting document to PDF, ImageMagick timed out after 60 seconds"
+            )
+            sys.exit(1)
         if p.returncode != 0:
             print_flush(f"Conversion to PDF failed: {p.stdout}")
             sys.exit(1)
@@ -123,14 +138,23 @@ def main():
         sys.exit(1)
 
     # Separate PDF into pages
+    print_flush("")
+    print_flush(f"Separating document into pages")
     args = ["pdfseparate", pdf_filename, "/tmp/page-%d.pdf"]
-    p = subprocess.run(args)
+    try:
+        p = subprocess.run(args, timeout=60)
+    except subprocess.TimeoutExpired:
+        print_flush(
+            "Error separating document into pages, pdfseparate timed out after 60 seconds"
+        )
+        sys.exit(1)
     if p.returncode != 0:
         print_flush(f"Separating document into pages failed: {p.stdout}")
         sys.exit(1)
 
     page_filenames = glob.glob("/tmp/page-*.pdf")
     print_flush(f"Document has {len(page_filenames)} pages")
+    print_flush("")
 
     # Convert to RGB pixel data
     for page in range(1, len(page_filenames) + 1):
@@ -144,9 +168,16 @@ def main():
         print_flush(f"Converting page {page} to pixels")
 
         # Convert to png
-        p = subprocess.run(
-            ["pdftocairo", pdf_filename, "-png", "-singlefile", filename_base]
-        )
+        try:
+            p = subprocess.run(
+                ["pdftocairo", pdf_filename, "-png", "-singlefile", filename_base],
+                timeout=60,
+            )
+        except subprocess.TimeoutExpired:
+            print_flush(
+                "Error converting from PDF to PNG, pdftocairo timed out after 60 seconds"
+            )
+            sys.exit(1)
         if p.returncode != 0:
             print_flush(f"Conversion from PDF to PNG failed: {p.stdout}")
             sys.exit(1)
@@ -160,14 +191,21 @@ def main():
             f.write(str(height))
 
         # Convert to RGB pixels
-        p = subprocess.run(
-            ["convert", png_filename, "-depth", "8", f"rgb:{rgb_filename}"]
-        )
+        try:
+            p = subprocess.run(
+                ["convert", png_filename, "-depth", "8", f"rgb:{rgb_filename}"],
+                timeout=60,
+            )
+        except subprocess.TimeoutExpired:
+            print_flush(
+                "Error converting from PNG to pixels, convert timed out after 60 seconds"
+            )
+            sys.exit(1)
         if p.returncode != 0:
             print_flush(f"Conversion from PNG to RGB failed: {p.stdout}")
             sys.exit(1)
 
-        # # Delete the png
+        # Delete the png
         os.remove(png_filename)
 
 

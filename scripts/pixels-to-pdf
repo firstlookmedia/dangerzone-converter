@@ -1,8 +1,13 @@
 #!/bin/bash
 
 # Do the conversion without root
-/usr/bin/sudo -E -u user /usr/local/bin/pixels-to-pdf-unpriv
+/usr/bin/sudo OCR=$OCR OCR_LANGUAGE=$OCR_LANGUAGE -u user /usr/local/bin/pixels-to-pdf-unpriv
+RETURN_CODE=$?
+if [ $RETURN_CODE -ne 0 ]; then
+    echo ""
+    exit $RETURN_CODE
+fi
 
 # Move converted files into /safezone
-/usr/bin/mv /tmp/safe-output.pdf /safezone
-/usr/bin/mv /tmp/safe-output-compressed.pdf /safezone
+/bin/mv /tmp/safe-output.pdf /safezone
+/bin/mv /tmp/safe-output-compressed.pdf /safezone
