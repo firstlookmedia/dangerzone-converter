@@ -104,7 +104,7 @@ def main():
             "/tmp/input_file",
         ]
         try:
-            p = subprocess.run(args, timeout=10)
+            p = subprocess.run(args, timeout=60)
         except subprocess.TimeoutExpired:
             print_flush(
                 "Error converting document to PDF, LibreOffice timed out after 60 seconds"
