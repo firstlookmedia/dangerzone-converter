@@ -28,6 +28,11 @@ def main():
             "type": "libreoffice",
             "libreoffice_output_filter": "writer_pdf_Export",
         },
+        # .docm
+        "application/vnd.ms-word.document.macroEnabled.12": {
+            "type": "libreoffice",
+            "libreoffice_output_filter": "writer_pdf_Export",
+        },
         # .xlsx
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
             "type": "libreoffice",
