@@ -121,8 +121,9 @@ def main():
             sys.exit(1)
         pdf_filename = "/tmp/input_file.pdf"
     elif conversion["type"] == "convert":
-        print_flush(f"Converting to PDF using ImageMagick")
+        print_flush(f"Converting to PDF using GraphicsMagick")
         args = [
+            "gm",
             "convert",
             "/tmp/input_file",
             "/tmp/input_file.pdf",
@@ -131,7 +132,7 @@ def main():
             p = subprocess.run(args, timeout=60)
         except subprocess.TimeoutExpired:
             print_flush(
-                "Error converting document to PDF, ImageMagick timed out after 60 seconds"
+                "Error converting document to PDF, GraphicsMagick timed out after 60 seconds"
             )
             sys.exit(1)
         if p.returncode != 0:
@@ -198,7 +199,7 @@ def main():
         # Convert to RGB pixels
         try:
             p = subprocess.run(
-                ["convert", png_filename, "-depth", "8", f"rgb:{rgb_filename}"],
+                ["gm", "convert", png_filename, "-depth", "8", f"rgb:{rgb_filename}"],
                 timeout=60,
             )
         except subprocess.TimeoutExpired:

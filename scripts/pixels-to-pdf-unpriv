@@ -34,6 +34,7 @@ def main():
             print_flush(f"Converting page {page} from pixels to searchable PDF")
 
             args = [
+                "gm",
                 "convert",
                 "-size",
                 f"{width}x{height}",
@@ -77,6 +78,7 @@ def main():
             print_flush(f"Converting page {page} from pixels to PDF")
 
             args = [
+                "gm",
                 "convert",
                 "-size",
                 f"{width}x{height}",
