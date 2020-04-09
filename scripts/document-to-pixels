@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Do the conversion without root
-/usr/bin/sudo -u user /usr/local/bin/document-to-pixels-unpriv 2> /dev/null
+/usr/bin/sudo -u user /usr/local/bin/document-to-pixels-unpriv
 RETURN_CODE=$?
 if [ $RETURN_CODE -ne 0 ]; then
     echo ""

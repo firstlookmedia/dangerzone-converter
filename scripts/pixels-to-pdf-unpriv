@@ -119,13 +119,14 @@ def main():
 
     # Compress
     print_flush("Compressing PDF")
+    compress_timeout = num_pages * 3
     try:
         p = subprocess.run(
             ["ps2pdf", "/tmp/safe-output.pdf", "/tmp/safe-output-compressed.pdf"],
-            timeout=60,
+            timeout=compress_timeout,
         )
     except subprocess.TimeoutExpired:
-        print_flush("Error compressing PDF, ps2pdf timed out after 60 seconds")
+        print_flush(f"Error compressing PDF, ps2pdf timed out after {compress_timeout} seconds")
         sys.exit(1)
     if p.returncode != 0:
         print_flush(f"Compression failed: {p.stdout}")
