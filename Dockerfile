@@ -18,7 +18,7 @@ RUN DEBIAN_FRONTEND=noninteractive && \
     apt-get upgrade --yes && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    useradd --no-log-init --create-home --shell /bin/bash user
+    useradd --no-log-init --create-home --shell /bin/bash -K UID_MIN=10000 -K GID_MIN=10000 user
 
 COPY scripts/* /usr/local/bin/
 
