@@ -21,3 +21,11 @@ RUN DEBIAN_FRONTEND=noninteractive && \
     useradd --no-log-init --create-home --shell /bin/bash user
 
 COPY scripts/* /usr/local/bin/
+
+# /tmp is where the first convert expects the input file to be, and
+# where it will write the pixel files
+#
+# /dangerzone is where the second script expects files to be put by the first one
+#
+# /safezone is where the wrapper eventually moves the sanitized files.
+VOLUME /dangerzone /tmp /safezone
