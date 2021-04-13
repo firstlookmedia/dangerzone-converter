@@ -1,6 +1,8 @@
 FROM ubuntu:20.04
 
-RUN apt-get update && \
+RUN DEBIAN_FRONTEND=noninteractive && \
+    export DEBIAN_FRONTEND && \
+    apt-get update && \
     apt-get install --yes --no-install-recommends \
         ghostscript \
         graphicsmagick \
