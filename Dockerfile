@@ -30,14 +30,3 @@ COPY scripts/* /usr/local/bin/
 VOLUME /dangerzone /tmp /safezone
 
 USER user
-
-# to run this:
-#
-# PIXEL_DIR=pixels
-# SAFE_DIR=safe
-# DOCKER_HARDENING="--network none --security-opt=no-new-privileges:true"
-# mkdir $PIXEL_DIR $SAFE_DIR
-# chmod g+w $PIXEL_DIR $SAFE_DIR
-# sudo chown 10000 $PIXEL_DIR $SAFE_DIR
-# docker run $DOCKER_HARDENING -v $PIXEL_DIR:/dangerzone -v $DOCUMENT_FILENAME:/tmp/input_file flmcode/dangerzone document-to-pixels-unpriv
-# docker run $DOCKER_HARDENING -v $PIXEL_DIR:/dangerzone -v $SAFE_DIR:/safezone -e OCR=$OCR -e OCR_LANGUAGE=$OCR_LANG flmcode/dangerzone pixels-to-pdf-unpriv
