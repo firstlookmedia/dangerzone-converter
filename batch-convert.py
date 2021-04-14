@@ -5,6 +5,7 @@ import logging
 import os
 import os.path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -158,6 +159,7 @@ def main():
             ("docker", "cp", f"{container_id}:/tmp/{path}", args.safe_dir)
         )
     subprocess.check_call(("docker", "rm", container_id))
+    shutil.rmtree(args.pixel_dir)
 
 
 if __name__ == "__main__":
