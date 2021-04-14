@@ -154,10 +154,14 @@ def main():
             container_id = fp.read().strip()
 
     logging.info("stage 2 completed in container %s", container_id)
-    for path in ("safe-output.pdf", "safe-output-compressed.pdf"):
-        subprocess.check_call(
-            ("docker", "cp", f"{container_id}:/tmp/{path}", args.safe_dir)
+    subprocess.check_call(
+        (
+            "docker",
+            "cp",
+            f"{container_id}:/tmp/safe-output-compressed.pdf",
+            os.path.join(args.safe_dir, os.path.basename(args.document)),
         )
+    )
     subprocess.check_call(("docker", "rm", container_id))
     shutil.rmtree(args.pixel_dir)
 
