@@ -25,6 +25,11 @@ class BatchArgParser(argparse.ArgumentParser):
             help="where to store temporary files, default: %(default)s",
         )
         self.add_argument(
+            "--image",
+            default="flmcode/dangerzone",
+            help="Docker image to use, default %(default)s",
+        )
+        self.add_argument(
             "-v",
             "--verbose",
             action=LoggingAction,
@@ -102,7 +107,7 @@ def main():
             os.path.abspath(args.document) + ":/tmp/input_file",
         ]
         cmd += DOCKER_HARDENING
-        cmd += ("flmcode/dangerzone", "document-to-pixels-unpriv")
+        cmd += (args.image, "document-to-pixels-unpriv")
         output = subprocess.check_output(cmd)
         print(output.decode("utf-8"))
         with open(f"{tmpdir}/cidfile") as fp:
@@ -142,7 +147,7 @@ def main():
             # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
         ]
         cmd += DOCKER_HARDENING
-        cmd += ("flmcode/dangerzone", "pixels-to-pdf-unpriv")
+        cmd += (args.image, "pixels-to-pdf-unpriv")
         subprocess.check_call(cmd)
         with open(f"{tmpdir}/cidfile") as fp:
             container_id = fp.read().strip()
