@@ -97,6 +97,11 @@ def main():
     os.makedirs(args.pixel_dir, exist_ok=True)
     pixel_dir = os.path.abspath(args.pixel_dir)
 
+    if args.verbose or args.debug:
+        cmd_output = None
+    else:
+        cmd_output = subprocess.DEVNULL
+
     DOCKER_HARDENING = ("--network", "none", "--security-opt=no-new-privileges:true")
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
@@ -110,7 +115,8 @@ def main():
         cmd += DOCKER_HARDENING
         cmd += (args.image, "document-to-pixels-unpriv")
         output = subprocess.check_output(cmd)
-        print(output.decode("utf-8"))
+        if cmd_output is None:
+            print(output.decode("utf-8"))
         with open(f"{tmpdir}/cidfile") as fp:
             container_id = fp.read().strip()
 
@@ -135,7 +141,9 @@ def main():
                 )
             except subprocess.CalledProcessError as e:
                 logging.warning("failed to copy file %s: %s", type, e)
-    subprocess.check_call(("docker", "rm", container_id))
+    subprocess.run(
+        ("docker", "rm", container_id), check=True, stdout=cmd_output
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
@@ -149,7 +157,7 @@ def main():
         ]
         cmd += DOCKER_HARDENING
         cmd += (args.image, "pixels-to-pdf-unpriv")
-        subprocess.check_call(cmd)
+        subprocess.run(cmd, check=True, stdout=cmd_output)
         with open(f"{tmpdir}/cidfile") as fp:
             container_id = fp.read().strip()
 
@@ -162,7 +170,9 @@ def main():
             os.path.join(args.safe_dir, os.path.basename(args.document)),
         )
     )
-    subprocess.check_call(("docker", "rm", container_id))
+    subprocess.run(
+        ("docker", "rm", container_id), check=True, stdout=cmd_output
+    )
     shutil.rmtree(args.pixel_dir)
 
 
