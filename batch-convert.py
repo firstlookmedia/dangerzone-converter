@@ -85,7 +85,7 @@ class LoggingAction(argparse.Action):
 
 
 def main():
-    logging.basicConfig(format='%(message)s')
+    logging.basicConfig(format="%(message)s")
     args = BatchArgParser().parse_args()
     os.makedirs(args.safe_dir, exist_ok=True)
     os.makedirs(args.pixel_dir, exist_ok=True)
@@ -104,7 +104,7 @@ def main():
         cmd += DOCKER_HARDENING
         cmd += ("flmcode/dangerzone", "document-to-pixels-unpriv")
         output = subprocess.check_output(cmd)
-        print(output.decode('utf-8'))
+        print(output.decode("utf-8"))
         with open(f"{tmpdir}/cidfile") as fp:
             container_id = fp.read().strip()
 
@@ -116,15 +116,20 @@ def main():
     pages = int(m.group(1))
     logging.info("generated %d pages", pages)
 
-    for page in range(1, pages+1):
-        for type in ('rgb', 'width', 'height'):
+    for page in range(1, pages + 1):
+        for type in ("rgb", "width", "height"):
             try:
                 subprocess.check_call(
-                    ("docker", "cp", f"{container_id}:/tmp/page-{page}.{type}", args.pixel_dir)
+                    (
+                        "docker",
+                        "cp",
+                        f"{container_id}:/tmp/page-{page}.{type}",
+                        args.pixel_dir,
+                    )
                 )
             except subprocess.CalledProcessError as e:
                 logging.warning("failed to copy file %s: %s", type, e)
-    subprocess.check_call(('docker', 'rm', container_id))
+    subprocess.check_call(("docker", "rm", container_id))
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
@@ -133,7 +138,7 @@ def main():
             "-it",  # to get the output
             f"--cidfile={tmpdir}/cidfile",  # to get the container ID
             "--volume",
-            f'{pixel_dir}:/dangerzone',
+            f"{pixel_dir}:/dangerzone",
             # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
         ]
         cmd += DOCKER_HARDENING
@@ -143,11 +148,11 @@ def main():
             container_id = fp.read().strip()
 
     logging.info("stage 2 completed in container %s", container_id)
-    for path in ('safe-output.pdf', 'safe-output-compressed.pdf'):
+    for path in ("safe-output.pdf", "safe-output-compressed.pdf"):
         subprocess.check_call(
             ("docker", "cp", f"{container_id}:/tmp/{path}", args.safe_dir)
         )
-    subprocess.check_call(('docker', 'rm', container_id))
+    subprocess.check_call(("docker", "rm", container_id))
 
 
 if __name__ == "__main__":
