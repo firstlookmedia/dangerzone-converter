@@ -38,6 +38,12 @@ class BatchArgParser(argparse.ArgumentParser):
             const="DEBUG",
             help="enable debugging messages",
         )
+        self.add_argument(
+            "-n",
+            "--dryrun",
+            action="store_true",
+            help="simulate",
+        )
 
 
 class LoggingAction(argparse.Action):
@@ -88,10 +94,11 @@ def main():
     logging.basicConfig(format="%(message)s")
     args = BatchArgParser().parse_args()
     os.makedirs(args.safe_dir, exist_ok=True)
+    sanitizer = Sanitizer(safe_dir=args.safe_dir, image=args.image, verbose=args.verbose or args.debug, dryrun=args.dryrun)
     if os.path.isdir(args.document):
-        sanitize_dir(dir)
+        sanitizer.sanitize_dir(dir)
     else:
-        sanitize_file(args.document, args.safe_dir, args.image, args.verbose or args.debug)
+        sanitizer.sanitize_file(args.document)
 
 
 class DockerRunner(object):
@@ -102,7 +109,7 @@ class DockerRunner(object):
         self.image = image
         self.cmd_output = cmd_output
 
-    def run(self, docker_args=[], image=None, args=[]):
+    def run(self, docker_args=[], image=None, args=[], dryrun=True):
         if image is None:
             image = self.image
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -116,74 +123,87 @@ class DockerRunner(object):
             cmd += self.DOCKER_HARDENING
             cmd += self.image
             cmd += args
-            output = subprocess.check_output(cmd)
-            if self.cmd_output:
-                print(output.decode("utf-8"))
-            with open(f"{tmpdir}/cidfile") as fp:
-                container_id = fp.read().strip()
+            output = ''
+            container_id = None
+            if dryrun:
+                logging.info("dry run, not running: %s", cmd)
+            else:
+                logging.debug("running command: %s", cmd)
+                output = subprocess.check_output(cmd)
+                if self.cmd_output:
+                    print(output.decode("utf-8"))
+                with open(f"{tmpdir}/cidfile") as fp:
+                    container_id = fp.read().strip()
         return container_id, output
 
 
-def sanitize_dir(dir, safe_dir, image, cmd_output):
-    for root, dirs, files in os.walk(dir):
-        for dir in dirs:
-            sanitize_dir(dir, safe_dir, image, cmd_output)
-        safe_dir = safe_dir + "/" + os.path.basename(root)
-        logging.info("processing %d files in dir %s to safe_dir: %s", len(files), root, safe_dir)
-        for file in files:
-            sanitize_file(file, safe_dir, image, cmd_output)
+class Sanitizer():
+    def __init__(self, safe_dir, image, verbose, dryrun):
+        self.safe_dir = safe_dir
+        self.image = image
+        self.verbose = verbose
+        self.dryrun = dryrun
 
+    def sanitize_dir(self, dir):
+        for root, dirs, files in os.walk(dir):
+            for dir in dirs:
+                self.sanitize_dir(dir)
+            safe_dir = self.safe_dir + "/" + os.path.basename(root)
+            logging.info("processing %d files in dir %s to safe_dir: %s", len(files), root, safe_dir)
+            for file in files:
+                self.sanitize_file(file, self.safe_dir, self.image, self.verbose)
 
-def sanitize_file(path, safe_dir, image, cmd_output):
-    runner = DockerRunner(image=image, cmd_output=cmd_output)
-    container_id, output = runner.run(
-        docker_args=["--volume", os.path.abspath(path) + ":/tmp/input_file"],
-        args=["document-to-pixels-unpriv"],
-    )
+    def sanitize_file(self, path):
+        runner = DockerRunner(image=self.image, cmd_output=self.verbose)
+        container_id, output = runner.run(
+            docker_args=["--volume", os.path.abspath(path) + ":/tmp/input_file"],
+            args=["document-to-pixels-unpriv"],
+            dryrun=self.dryrun,
+        )
 
-    logging.info("stage 1 completed in container %s", container_id)
-    m = re.search(rb"Document has (\d+) pages", output)
-    if not m:
-        logging.error("failed to find page numbers")
-        sys.exit(1)
-    pages = int(m.group(1))
-    logging.info("generated %d pages", pages)
+        logging.info("stage 1 completed in container %s", container_id)
+        m = re.search(rb"Document has (\d+) pages", output)
+        if not m:
+            logging.error("failed to find page numbers")
+            sys.exit(1)
+        pages = int(m.group(1))
+        logging.info("generated %d pages", pages)
 
-    with tempfile.TemporaryDirectory() as pixel_dir:
-        for page in range(1, pages + 1):
-            for type in ("rgb", "width", "height"):
-                try:
-                    subprocess.check_call(
-                        (
-                            "docker",
-                            "cp",
-                            f"{container_id}:/tmp/page-{page}.{type}",
-                            pixel_dir.name,
+        with tempfile.TemporaryDirectory() as pixel_dir:
+            for page in range(1, pages + 1):
+                for type in ("rgb", "width", "height"):
+                    try:
+                        subprocess.check_call(
+                            (
+                                "docker",
+                                "cp",
+                                f"{container_id}:/tmp/page-{page}.{type}",
+                                pixel_dir.name,
+                            )
                         )
-                    )
-                except subprocess.CalledProcessError as e:
-                    logging.warning("failed to copy file %s: %s", type, e)
-        subprocess.run(
-            ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
-        )
-        container_id, _ = runner.run(
-            # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
-            docker_args=["--volume", f"{pixel_dir.name}:/dangerzone"],
-            args=["pixels-to-pdf-unpriv"],
-        )
-
-        logging.info("stage 2 completed in container %s", container_id)
-        subprocess.check_call(
-            (
-                "docker",
-                "cp",
-                f"{container_id}:/tmp/safe-output-compressed.pdf",
-                os.path.join(safe_dir, os.path.basename(path)),
+                    except subprocess.CalledProcessError as e:
+                        logging.warning("failed to copy file %s: %s", type, e)
+            subprocess.run(
+                ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
             )
-        )
-        subprocess.run(
-            ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
-        )
+            container_id, _ = runner.run(
+                # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
+                docker_args=["--volume", f"{pixel_dir.name}:/dangerzone"],
+                args=["pixels-to-pdf-unpriv"],
+            )
+
+            logging.info("stage 2 completed in container %s", container_id)
+            subprocess.check_call(
+                (
+                    "docker",
+                    "cp",
+                    f"{container_id}:/tmp/safe-output-compressed.pdf",
+                    os.path.join(self.safe_dir, os.path.basename(path)),
+                )
+            )
+            subprocess.run(
+                ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
+            )
 
 
 if __name__ == "__main__":
