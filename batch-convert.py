@@ -13,7 +13,7 @@ import tempfile
 class BatchArgParser(argparse.ArgumentParser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_argument("document", help="document to sanitize")
+        self.add_argument("document", help="document or directory to sanitize")
         self.add_argument(
             "--safe-dir",
             default="safe/",
@@ -88,7 +88,10 @@ def main():
     logging.basicConfig(format="%(message)s")
     args = BatchArgParser().parse_args()
     os.makedirs(args.safe_dir, exist_ok=True)
-    sanitize_file(args.document, args.safe_dir, args.image, args.verbose or args.debug)
+    if os.path.isdir(args.document):
+        sanitize_dir(dir)
+    else:
+        sanitize_file(args.document, args.safe_dir, args.image, args.verbose or args.debug)
 
 
 class DockerRunner(object):
@@ -119,6 +122,16 @@ class DockerRunner(object):
             with open(f"{tmpdir}/cidfile") as fp:
                 container_id = fp.read().strip()
         return container_id, output
+
+
+def sanitize_dir(dir, safe_dir, image, cmd_output):
+    for root, dirs, files in os.walk(dir):
+        for dir in dirs:
+            sanitize_dir(dir, safe_dir, image, cmd_output)
+        safe_dir = safe_dir + "/" + os.path.basename(root)
+        logging.info("processing %d files in dir %s to safe_dir: %s", len(files), root, safe_dir)
+        for file in files:
+            sanitize_file(file, safe_dir, image, cmd_output)
 
 
 def sanitize_file(path, safe_dir, image, cmd_output):
