@@ -5,7 +5,6 @@ import logging
 import os
 import os.path
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,11 +18,6 @@ class BatchArgParser(argparse.ArgumentParser):
             "--safe-dir",
             default="safe/",
             help="where to store sanitized files, default: %(default)s",
-        )
-        self.add_argument(
-            "--pixel-dir",
-            default="pixel/",
-            help="where to store temporary files, default: %(default)s",
         )
         self.add_argument(
             "--image",
@@ -94,14 +88,14 @@ def main():
     logging.basicConfig(format="%(message)s")
     args = BatchArgParser().parse_args()
     os.makedirs(args.safe_dir, exist_ok=True)
-    os.makedirs(args.pixel_dir, exist_ok=True)
-    pixel_dir = os.path.abspath(args.pixel_dir)
-
     if args.verbose or args.debug:
         cmd_output = None
     else:
         cmd_output = subprocess.DEVNULL
+    sanitize_file(args.document, args.safe_dir, args.image, cmd_output)
 
+
+def sanitize_file(path, safe_dir, image, cmd_output=None):
     DOCKER_HARDENING = ("--network", "none", "--security-opt=no-new-privileges:true")
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
@@ -110,10 +104,10 @@ def main():
             "-it",  # to get the output
             f"--cidfile={tmpdir}/cidfile",  # to get the container ID
             "--volume",
-            os.path.abspath(args.document) + ":/tmp/input_file",
+            os.path.abspath(path) + ":/tmp/input_file",
         ]
         cmd += DOCKER_HARDENING
-        cmd += (args.image, "document-to-pixels-unpriv")
+        cmd += (image, "document-to-pixels-unpriv")
         output = subprocess.check_output(cmd)
         if cmd_output is None:
             print(output.decode("utf-8"))
@@ -128,52 +122,52 @@ def main():
     pages = int(m.group(1))
     logging.info("generated %d pages", pages)
 
-    for page in range(1, pages + 1):
-        for type in ("rgb", "width", "height"):
-            try:
-                subprocess.check_call(
-                    (
-                        "docker",
-                        "cp",
-                        f"{container_id}:/tmp/page-{page}.{type}",
-                        args.pixel_dir,
+    with tempfile.TemporaryDirectory() as pixel_dir:
+        for page in range(1, pages + 1):
+            for type in ("rgb", "width", "height"):
+                try:
+                    subprocess.check_call(
+                        (
+                            "docker",
+                            "cp",
+                            f"{container_id}:/tmp/page-{page}.{type}",
+                            pixel_dir.name,
+                        )
                     )
-                )
-            except subprocess.CalledProcessError as e:
-                logging.warning("failed to copy file %s: %s", type, e)
-    subprocess.run(
-        ("docker", "rm", container_id), check=True, stdout=cmd_output
-    )
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cmd = [
-            "docker",
-            "run",
-            "-it",  # to get the output
-            f"--cidfile={tmpdir}/cidfile",  # to get the container ID
-            "--volume",
-            f"{pixel_dir}:/dangerzone",
-            # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
-        ]
-        cmd += DOCKER_HARDENING
-        cmd += (args.image, "pixels-to-pdf-unpriv")
-        subprocess.run(cmd, check=True, stdout=cmd_output)
-        with open(f"{tmpdir}/cidfile") as fp:
-            container_id = fp.read().strip()
-
-    logging.info("stage 2 completed in container %s", container_id)
-    subprocess.check_call(
-        (
-            "docker",
-            "cp",
-            f"{container_id}:/tmp/safe-output-compressed.pdf",
-            os.path.join(args.safe_dir, os.path.basename(args.document)),
+                except subprocess.CalledProcessError as e:
+                    logging.warning("failed to copy file %s: %s", type, e)
+        subprocess.run(
+            ("docker", "rm", container_id), check=True, stdout=cmd_output
         )
-    )
-    subprocess.run(
-        ("docker", "rm", container_id), check=True, stdout=cmd_output
-    )
-    shutil.rmtree(args.pixel_dir)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cmd = [
+                "docker",
+                "run",
+                "-it",  # to get the output
+                f"--cidfile={tmpdir}/cidfile",  # to get the container ID
+                "--volume",
+                f"{pixel_dir.name}:/dangerzone",
+                # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
+            ]
+            cmd += DOCKER_HARDENING
+            cmd += (image, "pixels-to-pdf-unpriv")
+            subprocess.run(cmd, check=True, stdout=cmd_output)
+            with open(f"{tmpdir}/cidfile") as fp:
+                container_id = fp.read().strip()
+
+        logging.info("stage 2 completed in container %s", container_id)
+        subprocess.check_call(
+            (
+                "docker",
+                "cp",
+                f"{container_id}:/tmp/safe-output-compressed.pdf",
+                os.path.join(safe_dir, os.path.basename(path)),
+            )
+        )
+        subprocess.run(
+            ("docker", "rm", container_id), check=True, stdout=cmd_output
+        )
 
 
 if __name__ == "__main__":
