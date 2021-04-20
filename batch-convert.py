@@ -142,26 +142,28 @@ class DockerRunner(object):
         return container_id, output
 
     def cp(self, source, target):
+        cmd = (
+            "docker",
+            "cp",
+            source,
+            target,
+        )
         if self.dryrun:
-            logging.info("would run: docker cp %s %s", source, target)
+            logging.debug("would run: %s", cmd)
             return
+        logging.debug("running: %s", cmd)
         try:
-            subprocess.check_call((
-                "docker",
-                "cp",
-                source,
-                target,
-            ))
+            subprocess.check_call(cmd)
         except subprocess.CalledProcessError as e:
-            logging.warning("failed to copy file %s: %s", type, e)
+            logging.warning("failed to copy file: %s", e)
 
     def rm(self, container_id):
+        cmd = ("docker", "rm", container_id)
         if self.dryrun:
-            logging.info("would run: docker rm %s", container_id)
+            logging.debug("would run: %s", cmd)
             return
-        subprocess.run(
-            ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL,
-        )
+        logging.debug("running: %s", cmd)
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
 
 
 class Sanitizer():
