@@ -169,9 +169,7 @@ class DockerRunner(object):
 class Sanitizer():
     def __init__(self, safe_dir, image, verbose, dryrun):
         self.safe_dir = safe_dir
-        self.image = image
-        self.verbose = verbose
-        self.dryrun = dryrun
+        self.runner = DockerRunner(image=image, cmd_output=verbose, dryrun=dryrun)
 
     def sanitize_dir(self, dir):
         for root, dirs, files in os.walk(dir):
@@ -180,11 +178,10 @@ class Sanitizer():
             safe_dir = self.safe_dir + "/" + os.path.basename(root)
             logging.info("processing %d files in dir %s to safe_dir: %s", len(files), root, safe_dir)
             for file in files:
-                self.sanitize_file(file, self.safe_dir, self.image, self.verbose)
+                self.sanitize_file(file)
 
     def sanitize_file(self, path):
-        runner = DockerRunner(image=self.image, cmd_output=self.verbose, dryrun=self.dryrun)
-        container_id, output = runner.run(
+        container_id, output = self.runner.run(
             docker_args=["--volume", os.path.abspath(path) + ":/tmp/input_file"],
             args=["document-to-pixels-unpriv"],
         )
@@ -200,20 +197,20 @@ class Sanitizer():
         with tempfile.TemporaryDirectory() as pixel_dir:
             for page in range(1, pages + 1):
                 for type in ("rgb", "width", "height"):
-                    runner.cp(f"{container_id}:/tmp/page-{page}.{type}", pixel_dir)
-            runner.rm(container_id)
-            container_id, _ = runner.run(
+                    self.runner.cp(f"{container_id}:/tmp/page-{page}.{type}", pixel_dir)
+            self.runner.rm(container_id)
+            container_id, _ = self.runner.run(
                 # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
                 docker_args=["--volume", f"{pixel_dir}:/dangerzone"],
                 args=["pixels-to-pdf-unpriv"],
             )
 
             logging.info("stage 2 completed in container %s", container_id)
-            runner.cp(
+            self.runner.cp(
                 f"{container_id}:/tmp/safe-output-compressed.pdf",
                 os.path.join(self.safe_dir, os.path.basename(path)),
             )
-            runner.rm(container_id)
+            self.runner.rm(container_id)
 
 
 if __name__ == "__main__":
