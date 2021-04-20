@@ -96,7 +96,7 @@ def main():
     os.makedirs(args.safe_dir, exist_ok=True)
     sanitizer = Sanitizer(safe_dir=args.safe_dir, image=args.image, verbose=args.verbose or args.debug, dryrun=args.dryrun)
     if os.path.isdir(args.document):
-        sanitizer.sanitize_dir(dir)
+        sanitizer.sanitize_dir(args.document)
     else:
         sanitizer.sanitize_file(args.document)
 
@@ -171,16 +171,21 @@ class Sanitizer():
         self.safe_dir = safe_dir
         self.runner = DockerRunner(image=image, cmd_output=verbose, dryrun=dryrun)
 
-    def sanitize_dir(self, dir):
-        for root, dirs, files in os.walk(dir):
-            for dir in dirs:
-                self.sanitize_dir(dir)
+    def sanitize_dir(self, path):
+        for root, dirs, files in os.walk(path):
+            for path in dirs:
+                self.sanitize_dir(path)
+            root = root.rstrip("/")
             safe_dir = self.safe_dir + "/" + os.path.basename(root)
             logging.info("processing %d files in dir %s to safe_dir: %s", len(files), root, safe_dir)
             for file in files:
-                self.sanitize_file(file)
+                self.sanitize_file(os.path.join(root, file), safe_dir=safe_dir)
 
-    def sanitize_file(self, path):
+    def sanitize_file(self, path, safe_dir=None):
+        if safe_dir is None:
+            safe_dir = self.safe_dir
+        os.makedirs(safe_dir, exist_ok=True)
+        logging.info("sanitizing file %s into %s", path, safe_dir)
         container_id, output = self.runner.run(
             docker_args=["--volume", os.path.abspath(path) + ":/tmp/input_file"],
             args=["document-to-pixels-unpriv"],
@@ -212,7 +217,7 @@ class Sanitizer():
         logging.info("stage 2 completed in container %s", container_id)
         self.runner.cp(
             f"{container_id}:/tmp/safe-output-compressed.pdf",
-            os.path.join(self.safe_dir, os.path.basename(path)),
+            os.path.join(safe_dir, os.path.basename(path)),
         )
         self.runner.rm(container_id)
 
