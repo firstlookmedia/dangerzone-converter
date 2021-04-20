@@ -195,23 +195,26 @@ class Sanitizer():
         logging.info("generated %d pages", pages)
 
         with tempfile.TemporaryDirectory() as pixel_dir:
-            os.chmod(pixel_dir, 0o755)
             for page in range(1, pages + 1):
                 for type in ("rgb", "width", "height"):
                     self.runner.cp(f"{container_id}:/tmp/page-{page}.{type}", pixel_dir)
             self.runner.rm(container_id)
+            # make temp dir readable by all, so the container can also
+            # read it XXX: this is bad, but it's necessary because
+            # it's running as a different user.
+            os.chmod(pixel_dir, 0o755)
             container_id, _ = self.runner.run(
                 # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
                 docker_args=["--volume", f"{pixel_dir}:/dangerzone"],
                 args=["pixels-to-pdf-unpriv"],
             )
 
-            logging.info("stage 2 completed in container %s", container_id)
-            self.runner.cp(
-                f"{container_id}:/tmp/safe-output-compressed.pdf",
-                os.path.join(self.safe_dir, os.path.basename(path)),
-            )
-            self.runner.rm(container_id)
+        logging.info("stage 2 completed in container %s", container_id)
+        self.runner.cp(
+            f"{container_id}:/tmp/safe-output-compressed.pdf",
+            os.path.join(self.safe_dir, os.path.basename(path)),
+        )
+        self.runner.rm(container_id)
 
 
 if __name__ == "__main__":
