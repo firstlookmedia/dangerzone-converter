@@ -150,12 +150,8 @@ def sanitize_file(path, safe_dir, image, cmd_output):
                     )
                 except subprocess.CalledProcessError as e:
                     logging.warning("failed to copy file %s: %s", type, e)
-        if cmd_output:
-            stdout = None
-        else:
-            stdout = subprocess.DEVNULL
         subprocess.run(
-            ("docker", "rm", container_id), check=True, stdout=stdout
+            ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
         )
         container_id, _ = runner.run(
             # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
@@ -173,7 +169,7 @@ def sanitize_file(path, safe_dir, image, cmd_output):
             )
         )
         subprocess.run(
-            ("docker", "rm", container_id), check=True, stdout=stdout
+            ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
         )
 
 
