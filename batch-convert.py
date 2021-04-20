@@ -195,6 +195,7 @@ class Sanitizer():
         logging.info("generated %d pages", pages)
 
         with tempfile.TemporaryDirectory() as pixel_dir:
+            os.chmod(pixel_dir, 0o755)
             for page in range(1, pages + 1):
                 for type in ("rgb", "width", "height"):
                     self.runner.cp(f"{container_id}:/tmp/page-{page}.{type}", pixel_dir)
