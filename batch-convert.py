@@ -88,31 +88,45 @@ def main():
     logging.basicConfig(format="%(message)s")
     args = BatchArgParser().parse_args()
     os.makedirs(args.safe_dir, exist_ok=True)
-    if args.verbose or args.debug:
-        cmd_output = None
-    else:
-        cmd_output = subprocess.DEVNULL
-    sanitize_file(args.document, args.safe_dir, args.image, cmd_output)
+    sanitize_file(args.document, args.safe_dir, args.image, args.verbose or args.debug)
 
 
-def sanitize_file(path, safe_dir, image, cmd_output=None):
+class DockerRunner(object):
+    "convenience function to call Docker always the same way"
     DOCKER_HARDENING = ("--network", "none", "--security-opt=no-new-privileges:true")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cmd = [
-            "docker",
-            "run",
-            "-it",  # to get the output
-            f"--cidfile={tmpdir}/cidfile",  # to get the container ID
-            "--volume",
-            os.path.abspath(path) + ":/tmp/input_file",
-        ]
-        cmd += DOCKER_HARDENING
-        cmd += (image, "document-to-pixels-unpriv")
-        output = subprocess.check_output(cmd)
-        if cmd_output is None:
-            print(output.decode("utf-8"))
-        with open(f"{tmpdir}/cidfile") as fp:
-            container_id = fp.read().strip()
+
+    def __init__(self, image, cmd_output):
+        self.image = image
+        self.cmd_output = cmd_output
+
+    def run(self, docker_args=[], image=None, args=[]):
+        if image is None:
+            image = self.image
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cmd = [
+                "docker",
+                "run",
+                "-it",
+                f"--cidfile={tmpdir}/cidfile",  # to get the container ID
+            ]
+            cmd += docker_args
+            cmd += self.DOCKER_HARDENING
+            cmd += self.image
+            cmd += args
+            output = subprocess.check_output(cmd)
+            if self.cmd_output:
+                print(output.decode("utf-8"))
+            with open(f"{tmpdir}/cidfile") as fp:
+                container_id = fp.read().strip()
+        return container_id, output
+
+
+def sanitize_file(path, safe_dir, image, cmd_output):
+    runner = DockerRunner(image=image, cmd_output=cmd_output)
+    container_id, output = runner.run(
+        docker_args=["--volume", os.path.abspath(path) + ":/tmp/input_file"],
+        args=["document-to-pixels-unpriv"],
+    )
 
     logging.info("stage 1 completed in container %s", container_id)
     m = re.search(rb"Document has (\d+) pages", output)
@@ -136,25 +150,18 @@ def sanitize_file(path, safe_dir, image, cmd_output=None):
                     )
                 except subprocess.CalledProcessError as e:
                     logging.warning("failed to copy file %s: %s", type, e)
+        if cmd_output:
+            stdout = None
+        else:
+            stdout = subprocess.DEVNULL
         subprocess.run(
-            ("docker", "rm", container_id), check=True, stdout=cmd_output
+            ("docker", "rm", container_id), check=True, stdout=stdout
         )
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cmd = [
-                "docker",
-                "run",
-                "-it",  # to get the output
-                f"--cidfile={tmpdir}/cidfile",  # to get the container ID
-                "--volume",
-                f"{pixel_dir.name}:/dangerzone",
-                # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
-            ]
-            cmd += DOCKER_HARDENING
-            cmd += (image, "pixels-to-pdf-unpriv")
-            subprocess.run(cmd, check=True, stdout=cmd_output)
-            with open(f"{tmpdir}/cidfile") as fp:
-                container_id = fp.read().strip()
+        container_id, _ = runner.run(
+            # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
+            docker_args=["--volume", f"{pixel_dir.name}:/dangerzone"],
+            args=["pixels-to-pdf-unpriv"],
+        )
 
         logging.info("stage 2 completed in container %s", container_id)
         subprocess.check_call(
@@ -166,7 +173,7 @@ def sanitize_file(path, safe_dir, image, cmd_output=None):
             )
         )
         subprocess.run(
-            ("docker", "rm", container_id), check=True, stdout=cmd_output
+            ("docker", "rm", container_id), check=True, stdout=stdout
         )
 
 
