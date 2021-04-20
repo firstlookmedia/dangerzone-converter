@@ -105,11 +105,12 @@ class DockerRunner(object):
     "convenience function to call Docker always the same way"
     DOCKER_HARDENING = ("--network", "none", "--security-opt=no-new-privileges:true")
 
-    def __init__(self, image, cmd_output):
+    def __init__(self, image, cmd_output, dryrun):
         self.image = image
         self.cmd_output = cmd_output
+        self.dryrun = dryrun
 
-    def run(self, docker_args=[], image=None, args=[], dryrun=True):
+    def run(self, docker_args=[], image=None, args=[]):
         if image is None:
             image = self.image
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -121,11 +122,11 @@ class DockerRunner(object):
             ]
             cmd += docker_args
             cmd += self.DOCKER_HARDENING
-            cmd += self.image
+            cmd += [self.image]
             cmd += args
             output = ''
             container_id = None
-            if dryrun:
+            if self.dryrun:
                 logging.info("dry run, not running: %s", cmd)
             else:
                 logging.debug("running command: %s", cmd)
@@ -135,6 +136,28 @@ class DockerRunner(object):
                 with open(f"{tmpdir}/cidfile") as fp:
                     container_id = fp.read().strip()
         return container_id, output
+
+    def cp(self, source, target):
+        if self.dryrun:
+            logging.info("would run: docker cp %s %s", source, target)
+            return
+        try:
+            subprocess.check_call((
+                "docker",
+                "cp",
+                source,
+                target,
+            ))
+        except subprocess.CalledProcessError as e:
+            logging.warning("failed to copy file %s: %s", type, e)
+
+    def rm(self, container_id):
+        if self.dryrun:
+            logging.info("would run: docker rm %s", container_id)
+            return
+        subprocess.run(
+            ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL,
+        )
 
 
 class Sanitizer():
@@ -154,11 +177,10 @@ class Sanitizer():
                 self.sanitize_file(file, self.safe_dir, self.image, self.verbose)
 
     def sanitize_file(self, path):
-        runner = DockerRunner(image=self.image, cmd_output=self.verbose)
+        runner = DockerRunner(image=self.image, cmd_output=self.verbose, dryrun=self.dryrun)
         container_id, output = runner.run(
             docker_args=["--volume", os.path.abspath(path) + ":/tmp/input_file"],
             args=["document-to-pixels-unpriv"],
-            dryrun=self.dryrun,
         )
 
         logging.info("stage 1 completed in container %s", container_id)
@@ -172,38 +194,20 @@ class Sanitizer():
         with tempfile.TemporaryDirectory() as pixel_dir:
             for page in range(1, pages + 1):
                 for type in ("rgb", "width", "height"):
-                    try:
-                        subprocess.check_call(
-                            (
-                                "docker",
-                                "cp",
-                                f"{container_id}:/tmp/page-{page}.{type}",
-                                pixel_dir.name,
-                            )
-                        )
-                    except subprocess.CalledProcessError as e:
-                        logging.warning("failed to copy file %s: %s", type, e)
-            subprocess.run(
-                ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
-            )
+                    runner.cp(f"{container_id}:/tmp/page-{page}.{type}", pixel_dir)
+            runner.rm(container_id)
             container_id, _ = runner.run(
                 # -e OCR="$OCR" -e OCR_LANGUAGE="$OCR_LANG"
-                docker_args=["--volume", f"{pixel_dir.name}:/dangerzone"],
+                docker_args=["--volume", f"{pixel_dir}:/dangerzone"],
                 args=["pixels-to-pdf-unpriv"],
             )
 
             logging.info("stage 2 completed in container %s", container_id)
-            subprocess.check_call(
-                (
-                    "docker",
-                    "cp",
-                    f"{container_id}:/tmp/safe-output-compressed.pdf",
-                    os.path.join(self.safe_dir, os.path.basename(path)),
-                )
+            runner.cp(
+                f"{container_id}:/tmp/safe-output-compressed.pdf",
+                os.path.join(self.safe_dir, os.path.basename(path)),
             )
-            subprocess.run(
-                ("docker", "rm", container_id), check=True, stdout=subprocess.DEVNULL
-            )
+            runner.rm(container_id)
 
 
 if __name__ == "__main__":
