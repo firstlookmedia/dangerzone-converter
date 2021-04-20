@@ -124,15 +124,19 @@ class DockerRunner(object):
             cmd += self.DOCKER_HARDENING
             cmd += [self.image]
             cmd += args
-            output = ''
+            output = b''
             container_id = None
             if self.dryrun:
                 logging.info("dry run, not running: %s", cmd)
             else:
                 logging.debug("running command: %s", cmd)
-                output = subprocess.check_output(cmd)
-                if self.cmd_output:
-                    print(output.decode("utf-8"))
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+                for line in p.stdout.readlines():
+                    if self.cmd_output or True:
+                        print(line.decode("utf-8"), end='')
+                    output += line
+                if p.wait() != 0:
+                    logging.error("failed to run docker command: %s", cmd)
                 with open(f"{tmpdir}/cidfile") as fp:
                     container_id = fp.read().strip()
         return container_id, output
