@@ -2,7 +2,6 @@
 import sys
 import subprocess
 import glob
-import shutil
 import os
 
 import magic
@@ -82,6 +81,8 @@ def main():
         # .tif
         "image/tiff": {"type": "convert"},
         "image/x-tiff": {"type": "convert"},
+        #hwp
+        "application/x-hwp": {"type": "pyhwp"},
     }
 
     # Detect MIME type
@@ -139,6 +140,43 @@ def main():
             print_flush(f"Conversion to PDF failed: {p.stdout}")
             sys.exit(1)
         pdf_filename = "/tmp/input_file.pdf"
+    elif conversion["type"] == "pyhwp":
+        print_flush(f"Converting to xhtml using pyhwp")
+        args = [
+            "hwp5html",
+            "--output",
+            "/tmp/xhtml",
+            "/tmp/input_file",
+        ]
+        try:
+            p = subprocess.run(args, timeout=60)
+        except subprocess.TimeoutExpired:
+            print_flush(
+                "Error converting document to xhtml, pyhwp timed out after 60 seconds"
+            )
+            sys.exit(1)
+        if p.returncode != 0:
+            print_flush(f"Converting to xhtml failed: {p.stdout}")
+            sys.exit(1)
+        print_flush(f"Converting to PDF using wkhtmltopdf")
+        args = [
+            "xvfb-run",
+            "wkhtmltopdf",
+            "/tmp/xhtml/index.xhtml",
+            "/tmp/input_file.pdf",
+        ]
+        try:
+            p = subprocess.run(args, timeout=60)
+        except subprocess.TimeoutExpired:
+            print_flush(
+                "Error converting document to PDF, wkhtmltopdf timed out after 60 seconds"
+            )
+            sys.exit(1)
+        if p.returncode != 0:
+            print_flush(f"Converting to PDF failed: {p.stdout}")
+            sys.exit(1)
+        pdf_filename = "/tmp/input_file.pdf"
+
     else:
         print_flush("Invalid conversion type")
         sys.exit(1)
