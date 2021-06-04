@@ -61,12 +61,6 @@ jobs:
 workflows:
   version: 2
   build-stable:
-    triggers:
-      - schedule:
-        cron: "0 0 * * 0"
-        filters:
-          branches:
-            only: stable
     jobs:
       - build:
           filters:
@@ -78,6 +72,16 @@ workflows:
           filters:
             branches:
               only: stable
+  weekly:
+    triggers:
+      - schedule:
+        cron: "0 0 * * 0"
+        filters:
+          branches:
+            only: stable
+    jobs:
+      - build
+      - publish-latest
   build-tags:
     jobs:
       - build:
