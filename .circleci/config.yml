@@ -75,10 +75,10 @@ workflows:
   weekly:
     triggers:
       - schedule:
-        cron: "0 0 * * 0"
-        filters:
-          branches:
-            only: stable
+          cron: "0 0 * * 0"
+          filters:
+            branches:
+              only: stable
     jobs:
       - build
       - publish-latest
