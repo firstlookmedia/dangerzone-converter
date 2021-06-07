@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Remove this warning by setting the host in /etc/hosts:
+# sudo: unable to resolve host 8160b021d811: Temporary failure in name resolution
+echo 127.0.0.1 $(hostname) >> /etc/hosts
+
 # Do the conversion without root
 /usr/bin/sudo OCR=$OCR OCR_LANGUAGE=$OCR_LANGUAGE -u user /usr/local/bin/pixels-to-pdf-unpriv
 RETURN_CODE=$?
