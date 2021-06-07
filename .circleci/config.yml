@@ -96,7 +96,13 @@ workflows:
             branches:
               only: stable
     jobs:
-      - build
-      - publish-latest
+      - build:
+          filters:
+            branches:
+              only: stable
+      - publish-latest:
           requires:
-              - build
+            - build
+          filters:
+            branches:
+              only: stable
