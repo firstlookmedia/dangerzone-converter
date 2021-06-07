@@ -9,6 +9,7 @@ RUN DEBIAN_FRONTEND=noninteractive && \
     graphicsmagick \
     libreoffice \
     libreoffice-java-common \
+    pdftk \
     poppler-utils \
     python3 \
     python3-magic \
