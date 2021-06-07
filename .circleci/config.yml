@@ -72,16 +72,6 @@ workflows:
           filters:
             branches:
               only: stable
-  weekly:
-    triggers:
-      - schedule:
-          cron: "0 0 * * 0"
-          filters:
-            branches:
-              only: stable
-    jobs:
-      - build
-      - publish-latest
   build-tags:
     jobs:
       - build:
@@ -98,3 +88,15 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
+  weekly:
+    triggers:
+      - schedule:
+          cron: "15 20 * * 1"
+          filters:
+            branches:
+              only: stable
+    jobs:
+      - build
+      - publish-latest
+          requires:
+              - build
