@@ -84,6 +84,7 @@ def main():
         "image/x-tiff": {"type": "convert"},
         #hwp
         "application/x-hwp": {"type": "pyhwp"},
+        "application/octet-stream": {"type": "pyhwp"},
     }
 
     # Detect MIME type
