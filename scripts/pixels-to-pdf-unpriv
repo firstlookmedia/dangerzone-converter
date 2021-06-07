@@ -58,9 +58,11 @@ def main():
                 "tesseract",
                 png_filename,
                 ocr_filename,
-                "pdf",
                 "-l",
                 os.environ.get("OCR_LANGUAGE"),
+                "--dpi",
+                "70",
+                "pdf"
             ]
             try:
                 p = subprocess.run(args, timeout=60)

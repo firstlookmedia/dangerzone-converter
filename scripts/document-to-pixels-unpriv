@@ -146,7 +146,7 @@ def main():
     # Separate PDF into pages
     print_flush("")
     print_flush(f"Separating document into pages")
-    args = ["pdfseparate", pdf_filename, "/tmp/page-%d.pdf"]
+    args = ["pdftk", pdf_filename, "burst", "output", "/tmp/page-%d.pdf"]
     try:
         p = subprocess.run(args, timeout=60)
     except subprocess.TimeoutExpired:
