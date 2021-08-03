@@ -97,30 +97,31 @@ RUN apk add \
     six
 
 
-# Install wkhtmltopdf
-RUN apk add \
-    xvfb-run \
-    xfonts-100dpi \
-    xfonts-75dpi \
-    xfonts-scalable \
-    xfonts-cyrillic \
-    wkhtmltopdf \
-    flashplugin-nonfree \
-    language-pack-ko \ 
-    fonts-nanum \
-    fonts-nanum-coding \ 
-    fonts-nanum-extra \
-    fcitx-hangul
+# Install wkhtmltopdf try to fix error....
 
-RUN pip3 install --pre pyhwp six && \
-    locale-gen ko_KR.UTF-8 && \
-    apt-get upgrade --yes && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    useradd --no-log-init --create-home --shell /bin/bash user
+# RUN apk add \
+#     xvfb-run \
+#     xfonts-100dpi \
+#     xfonts-75dpi \
+#     xfonts-scalable \
+#     xfonts-cyrillic \
+#     wkhtmltopdf \
+#     flashplugin-nonfree \
+#     language-pack-ko \ 
+#     fonts-nanum \
+#     fonts-nanum-coding \ 
+#     fonts-nanum-extra \
+#     fcitx-hangul
 
-ENV LANG="en_US.UTF-8":"ko_KR.UTF-8"
-ENV LANGUAGE = "ko_KR:ko:en_GB:en"
+# RUN pip3 install --pre pyhwp six && \
+#     locale-gen ko_KR.UTF-8 && \
+#     apt-get upgrade --yes && \
+#     apt-get clean && \
+#     rm -rf /var/lib/apt/lists/* && \
+#     useradd --no-log-init --create-home --shell /bin/bash user
+
+# ENV LANG="en_US.UTF-8":"ko_KR.UTF-8"
+# ENV LANGUAGE = "ko_KR:ko:en_GB:en"
 
 
 # Install pdftk
