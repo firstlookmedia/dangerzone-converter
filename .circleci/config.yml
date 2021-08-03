@@ -88,3 +88,21 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
+  monthly:
+    triggers:
+      - schedule:
+          cron: "0 0 1 * *"
+          filters:
+            branches:
+              only: stable
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: stable
+      - publish-latest:
+          requires:
+            - build
+          filters:
+            branches:
+              only: stable
