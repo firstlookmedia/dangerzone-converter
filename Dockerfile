@@ -77,6 +77,52 @@ RUN apk -U upgrade && \
     tesseract-ocr-data-ukr \
     tesseract-ocr-data-vie
 
+# Install pyhwp
+RUN apk add \
+    py3-pip \
+    gcc \
+    musl-dev \
+    python3-dev \
+    libffi-dev \
+    openssl-dev \
+    libc-dev \
+    libxslt-dev \
+    libxslt && \
+    pip install \
+    wheel \
+    cryptography==3.1.1 \
+    lxml \
+    olefile \
+    --pre pyhwp \
+    six
+
+
+# Install wkhtmltopdf
+RUN apk add \
+    xvfb-run \
+    xfonts-100dpi \
+    xfonts-75dpi \
+    xfonts-scalable \
+    xfonts-cyrillic \
+    wkhtmltopdf \
+    flashplugin-nonfree \
+    language-pack-ko \ 
+    fonts-nanum \
+    fonts-nanum-coding \ 
+    fonts-nanum-extra \
+    fcitx-hangul
+
+RUN pip3 install --pre pyhwp six && \
+    locale-gen ko_KR.UTF-8 && \
+    apt-get upgrade --yes && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --no-log-init --create-home --shell /bin/bash user
+
+ENV LANG="en_US.UTF-8":"ko_KR.UTF-8"
+ENV LANGUAGE = "ko_KR:ko:en_GB:en"
+
+
 # Install pdftk
 RUN \
     wget https://gitlab.com/pdftk-java/pdftk/-/jobs/924565145/artifacts/raw/build/libs/pdftk-all.jar && \
